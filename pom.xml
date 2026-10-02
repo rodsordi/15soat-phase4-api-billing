@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.fiap.phase4</groupId>
+        <artifactId>15soat-phase4-lib-commons</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../15soat-phase4-lib-commons/pom.xml</relativePath>
+    </parent>
+
+    <groupId>br.com.fiap.phase4</groupId>
+    <artifactId>15soat-phase4-api-billing</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>15soat-phase4-api-billing</name>
+    <description>Billing &amp; Payment Microservice - Hexagonal Multi-Module with Mercado Pago Integration</description>
+
+    <properties>
+        <java.version>25</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <commons.version>0.0.1-SNAPSHOT</commons.version>
+        <springdoc-openapi.version>3.0.2</springdoc-openapi.version>
+        <openapi-generator.version>7.12.0</openapi-generator.version>
+        <archunit.version>1.4.1</archunit.version>
+        <flyway.version>12.0.3</flyway.version>
+        <testcontainers.version>1.20.5</testcontainers.version>
+    </properties>
+
+    <modules>
+        <module>domain</module>
+        <module>application</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Internal modules -->
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>billing-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Commons Library -->
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-domain</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-web</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-kafka</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-postgres</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-aot</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+
+            <!-- ArchUnit -->
+            <dependency>
+                <groupId>com.tngtech.archunit</groupId>
+                <artifactId>archunit-junit5</artifactId>
+                <version>${archunit.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Testcontainers BOM -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                        <parameters>true</parameters>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+                <!-- Native plugin skipped by default to avoid multi-module domain failures -->
+                <plugin>
+                    <groupId>org.graalvm.buildtools</groupId>
+                    <artifactId>native-maven-plugin</artifactId>
+                    <configuration>
+                        <skip>true</skip>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

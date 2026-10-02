@@ -1,0 +1,259 @@
+openapi: 3.0.3
+info:
+  title: Billing & Payment API
+  description: Microservice responsible for invoices, budgets, and Mercado Pago integration for auto repair shop.
+  version: 1.0.0
+servers:
+  - url: /
+    description: Current Server
+tags:
+  - name: Billing
+    description: Invoicing and Payment operations
+  - name: PaymentWebhook
+    description: Mercado Pago payment webhook notifications
+
+paths:
+  /api/v1/invoices:
+    post:
+      tags:
+        - Billing
+      summary: Create Invoice for an approved Work Order
+      operationId: createInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceRequest'
+      responses:
+        '201':
+          description: Invoice successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /api/v1/invoices/{id}:
+    get:
+      tags:
+        - Billing
+      summary: Get Invoice by ID
+      operationId: getInvoiceById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/invoices/work-order/{workOrderId}:
+    get:
+      tags:
+        - Billing
+      summary: Get Invoice by Work Order ID
+      operationId: getInvoiceByWorkOrderId
+      parameters:
+        - name: workOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/payments/mercadopago/checkout:
+    post:
+      tags:
+        - Billing
+      summary: Generate Mercado Pago PIX QR Code & Checkout
+      operationId: createMercadoPagoCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '200':
+          description: Checkout created with PIX QR code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/payments/mercadopago/webhook:
+    post:
+      tags:
+        - PaymentWebhook
+      summary: Idempotent Webhook endpoint for Mercado Pago payment notifications
+      operationId: processPaymentWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MercadoPagoWebhookRequest'
+      responses:
+        '200':
+          description: Webhook received and processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResponse'
+
+components:
+  schemas:
+    CreateInvoiceRequest:
+      type: object
+      required:
+        - workOrderId
+        - customerDocument
+        - amount
+      properties:
+        workOrderId:
+          type: string
+          format: uuid
+        customerDocument:
+          type: string
+          example: '52998224725'
+        amount:
+          type: number
+          format: double
+          example: 450.00
+
+    CheckoutRequest:
+      type: object
+      required:
+        - invoiceId
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+
+    CheckoutResponse:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        paymentId:
+          type: string
+        qrCode:
+          type: string
+        qrCodeBase64:
+          type: string
+        status:
+          type: string
+
+    MercadoPagoWebhookRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          example: 'payment.created'
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              example: '123456789'
+
+    WebhookResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'PROCESSED'
+        message:
+          type: string
+
+    InvoiceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workOrderId:
+          type: string
+          format: uuid
+        customerDocument:
+          type: string
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+        externalPaymentId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errorCode:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: Resource Not Found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    UnprocessableEntity:
+      description: Validation or Domain Exception
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'

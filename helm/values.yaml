@@ -1,0 +1,43 @@
+replicaCount: 2
+
+image:
+  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/15soat-phase4-api-billing
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8081
+
+ingress:
+  enabled: true
+  className: "kong"
+  annotations:
+    konghq.com/strip-path: "false"
+    konghq.com/plugins: "jwt-auth"
+  hosts:
+    - host: api.garage.fiap.com.br
+      paths:
+        - path: /api/v1/invoices
+          pathType: Prefix
+        - path: /api/v1/payments
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+
+env:
+  SPRING_PROFILES_ACTIVE: "prd"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://rds-postgres.internal:5432/billing_db"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
