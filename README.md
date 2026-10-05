@@ -25,39 +25,11 @@ Microsserviço responsável pela gestão de faturas, orçamentos, integração c
 
 ## Modelo de Dados & Diagrama Entidade-Relacionamento (MER)
 
-O modelo de faturamento e pagamentos é persistido no banco PostgreSQL (`billing_db`) gerenciado via migrations Flyway:
+O modelo de faturamento e pagamentos é persistido no banco PostgreSQL (`billing_db`) gerenciado via migrations Flyway.
 
-<div style="overflow-x: auto; width: 100%;">
-<div style="min-width: 800px;">
+Para visualizar o diagrama de relacionamentos, índices de concorrência e dicionário de dados da fatura, consulte a especificação centralizada no projeto E2E:
 
-```mermaid
-erDiagram
-    INVOICE {
-        uuid id PK "Identificador único da Fatura"
-        uuid work_order_id UK "Chave estrangeira lógica da Ordem de Serviço"
-        string customer_document "CPF ou CNPJ do Cliente"
-        numeric amount "Valor monetário total a ser cobrado"
-        string status "Status (PENDING, PAID, FAILED, CANCELED)"
-        string external_payment_id "Identificador da transação no Mercado Pago"
-        timestamp created_at "Data e hora de emissão"
-        timestamp updated_at "Data e hora de alteração"
-        bigint version "Controle de concorrência otimista"
-    }
-
-    PAYMENT_WEBHOOK {
-        uuid id PK "Identificador único da notificação recebida"
-        uuid invoice_id FK "Fatura associada à notificação"
-        string gateway "Provedor de pagamento (MERCADO_PAGO)"
-        string external_event_id "ID único do evento gerado pelo gateway"
-        string payment_status "approved, rejected, pending"
-        timestamp received_at "Data e hora da notificação assíncrona"
-    }
-
-    INVOICE ||--o{ PAYMENT_WEBHOOK : "recebe_notificacoes (1:N)"
-```
-
-</div>
-</div>
+👉 **[model.md (E2E) - Diagrama do Modelo de Dados & MER](../15soat-phase4-e2e/src/test/resources/features/billing/model.md)**
 
 ## Compilação & Testes
 ```bash
