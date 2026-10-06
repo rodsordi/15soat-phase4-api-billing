@@ -27,9 +27,9 @@ Microsserviço responsável pela gestão de faturas, orçamentos, integração c
 
 O modelo de faturamento e pagamentos é persistido no banco PostgreSQL (`billing_db`) gerenciado via migrations Flyway.
 
-Para visualizar o diagrama de relacionamentos, índices de concorrência e dicionário de dados da fatura, consulte a especificação centralizada no projeto E2E:
+Para visualizar o diagrama de relacionamentos, índices de concorrência e dicionário de dados da fatura, consulte a especificação do modelo de dados:
 
-👉 **[model.md (E2E) - Diagrama do Modelo de Dados & MER](../15soat-phase4-e2e/src/test/resources/features/billing/model.md)**
+👉 **[MODEL.md - Diagrama do Modelo de Dados & MER](MODEL.md)**
 
 ## Compilação & Testes
 ```bash
