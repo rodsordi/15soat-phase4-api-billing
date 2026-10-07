@@ -1,23 +1,23 @@
 openapi: 3.0.3
 info:
-  title: Billing & Payment API
-  description: Microservice responsible for invoices, budgets, and Mercado Pago integration for auto repair shop.
+  title: API de Faturamento e Pagamentos
+  description: Microsserviço responsável por faturas, orçamentos e integração com Mercado Pago para oficina mecânica.
   version: 1.0.0
 servers:
   - url: /
-    description: Current Server
+    description: Servidor Atual
 tags:
   - name: Billing
-    description: Invoicing and Payment operations
+    description: Operações de faturamento, orçamentos e pagamentos
   - name: PaymentWebhook
-    description: Mercado Pago payment webhook notifications
+    description: Notificações de webhook de pagamentos do Mercado Pago
 
 paths:
   /api/v1/invoices:
     post:
       tags:
         - Billing
-      summary: Create Invoice for an approved Work Order
+      summary: Criar fatura para uma Ordem de Serviço aprovada
       operationId: createInvoice
       requestBody:
         required: true
@@ -27,7 +27,13 @@ paths:
               $ref: '#/components/schemas/CreateInvoiceRequest'
       responses:
         '201':
-          description: Invoice successfully created
+          description: Fatura criada com sucesso
+          headers:
+            Location:
+              description: URI canônica do recurso criado
+              schema:
+                type: string
+                example: '/api/v1/invoices/3fa85f64-5717-4562-b3fc-2c963f66afa6'
           content:
             application/json:
               schema:
@@ -41,18 +47,19 @@ paths:
     get:
       tags:
         - Billing
-      summary: Get Invoice by ID
+      summary: Consultar fatura por ID
       operationId: getInvoiceById
       parameters:
         - name: id
           in: path
           required: true
+          description: Identificador único da fatura
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: Invoice details
+          description: Detalhes da fatura encontrados
           content:
             application/json:
               schema:
@@ -64,18 +71,19 @@ paths:
     get:
       tags:
         - Billing
-      summary: Get Invoice by Work Order ID
+      summary: Consultar fatura por ID da Ordem de Serviço
       operationId: getInvoiceByWorkOrderId
       parameters:
         - name: workOrderId
           in: path
           required: true
+          description: Identificador único da Ordem de Serviço vinculada
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: Invoice details
+          description: Detalhes da fatura encontrados
           content:
             application/json:
               schema:
@@ -87,7 +95,7 @@ paths:
     post:
       tags:
         - Billing
-      summary: Generate Mercado Pago PIX QR Code & Checkout
+      summary: Gerar checkout com QR Code PIX do Mercado Pago
       operationId: createMercadoPagoCheckout
       requestBody:
         required: true
@@ -97,7 +105,7 @@ paths:
               $ref: '#/components/schemas/CheckoutRequest'
       responses:
         '200':
-          description: Checkout created with PIX QR code
+          description: Checkout gerado com sucesso com QR Code PIX
           content:
             application/json:
               schema:
@@ -109,7 +117,7 @@ paths:
     post:
       tags:
         - PaymentWebhook
-      summary: Idempotent Webhook endpoint for Mercado Pago payment notifications
+      summary: Endpoint idempotente de webhook para notificações de pagamento do Mercado Pago
       operationId: processPaymentWebhook
       requestBody:
         required: true
@@ -119,7 +127,7 @@ paths:
               $ref: '#/components/schemas/MercadoPagoWebhookRequest'
       responses:
         '200':
-          description: Webhook received and processed successfully
+          description: Notificação de webhook recebida e processada com sucesso
           content:
             application/json:
               schema:
@@ -129,6 +137,7 @@ components:
   schemas:
     CreateInvoiceRequest:
       type: object
+      description: Requisição para abertura de fatura vinculada à Ordem de Serviço
       required:
         - workOrderId
         - customerDocument
@@ -137,125 +146,160 @@ components:
         workOrderId:
           type: string
           format: uuid
+          description: Identificador da Ordem de Serviço
         customerDocument:
           type: string
           example: '52998224725'
+          description: CPF ou CNPJ do cliente
         amount:
           type: number
           format: double
           example: 450.00
+          description: Valor total faturado
 
     CheckoutRequest:
       type: object
+      description: Requisição de inicialização de checkout de pagamento
       required:
         - invoiceId
       properties:
         invoiceId:
           type: string
           format: uuid
+          description: Identificador da fatura
 
     CheckoutResponse:
       type: object
+      description: Dados do checkout gerado com QR Code PIX
       properties:
         invoiceId:
           type: string
           format: uuid
+          description: Identificador da fatura
         paymentId:
           type: string
+          description: Identificador do pagamento gerado no gateway
         qrCode:
           type: string
+          description: Código 'Copia e Cola' do PIX
         qrCodeBase64:
           type: string
+          description: Imagem do QR Code em formato Base64
         status:
           type: string
+          description: Status atual da tentativa de checkout
 
     MercadoPagoWebhookRequest:
       type: object
+      description: Payload da notificação recebida do Mercado Pago
       required:
         - action
       properties:
         action:
           type: string
           example: 'payment.created'
+          description: Ação do evento disparado
         data:
           type: object
           properties:
             id:
               type: string
               example: '123456789'
+              description: Identificador do recurso no Mercado Pago
 
     WebhookResponse:
       type: object
+      description: Resposta de confirmação de processamento do webhook
       properties:
         status:
           type: string
           example: 'PROCESSED'
+          description: Status de processamento do webhook
         message:
           type: string
+          description: Mensagem de confirmação ou detalhamento
 
     InvoiceResponse:
       type: object
+      description: Detalhes completos da fatura de cobrança
       properties:
         id:
           type: string
           format: uuid
+          description: Identificador único da fatura
         workOrderId:
           type: string
           format: uuid
+          description: Identificador da Ordem de Serviço
         customerDocument:
           type: string
+          description: CPF ou CNPJ do cliente
         amount:
           type: number
           format: double
+          description: Valor faturado
         status:
           type: string
+          description: Status da fatura (PENDING, PAID, REJECTED, CANCELED)
         externalPaymentId:
           type: string
+          description: Identificador do pagamento externo no gateway
         createdAt:
           type: string
           format: date-time
+          description: Data e hora de emissão da fatura
         updatedAt:
           type: string
           format: date-time
+          description: Data e hora da última atualização
         version:
           type: integer
           format: int64
+          description: Versão de controle de concorrência otimista
 
     ProblemDetail:
       type: object
+      description: Estrutura padrão de erro RFC 7807/9457
       properties:
         type:
           type: string
           format: uri
+          description: URI que identifica o tipo do problema
         title:
           type: string
+          description: Resumo curto e legível do problema
         status:
           type: integer
+          description: Código de status HTTP
         detail:
           type: string
+          description: Explicação legível e específica para esta ocorrência
         errorCode:
           type: string
+          description: Código de erro de negócio padronizado
         timestamp:
           type: string
           format: date-time
+          description: Data e hora da ocorrência
         traceId:
           type: string
+          description: Identificador de rastreamento distribuído
 
   responses:
     BadRequest:
-      description: Bad Request
+      description: Requisição Inválida (Bad Request)
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     NotFound:
-      description: Resource Not Found
+      description: Recurso Não Encontrado (Not Found)
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     UnprocessableEntity:
-      description: Validation or Domain Exception
+      description: Erro de Validação ou Regra de Domínio (Unprocessable Entity)
       content:
         application/problem+json:
           schema:

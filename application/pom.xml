@@ -158,6 +158,7 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
+                            <skip>true</skip>
                             <inputSpec>${project.basedir}/src/main/resources/contracts/openapi.yaml</inputSpec>
                             <generatorName>spring</generatorName>
                             <apiPackage>br.com.fiap.phase4.billing.adapter.in.web.api</apiPackage>
