@@ -1,7 +1,19 @@
 openapi: 3.0.3
 info:
   title: API de Faturamento e Pagamentos
-  description: Microsserviço responsável por faturas, orçamentos e integração com Mercado Pago para oficina mecânica.
+  description: |
+    Microsserviço responsável por faturas, orçamentos e integração com Mercado Pago para oficina mecânica.
+
+    ### 📐 Padrões Arquiteturais e Conformidade Técnica (RFCs & ADRs)
+    - **Navegação Hipermídia (HATEOAS / Richardson Maturity Model Nível 3)**:
+      - Implementado via padrão HAL (*Hypertext Application Language* - `draft-kelly-json-hal-08` / **RFC 8288**).
+      - Respostas expõem o nó `_links` contendo navegação do recurso (`self`) e correlação com a Ordem de Serviço de origem (`workOrder`).
+      - Suporte a templates de URI parametrizados conforme **RFC 6570** (`templated: boolean`).
+      - Identificadores e referências canônicas estruturadas de acordo com **RFC 3986**.
+    - **Tratamento Padronizado de Erros (RFC 7807 / RFC 9457)**:
+      - Respostas de falha estruturadas no padrão canônico *Problem Details for HTTP APIs* (`application/problem+json`).
+    - **Granularidade e Simetria de DTOs (ADR-0003)**:
+      - `InvoiceDetailedResponse`: Detalhes completos da fatura de cobrança com metadados de pagamento externo e concorrência otimista.
   version: 1.0.0
 servers:
   - url: /
@@ -37,7 +49,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvoiceResponse'
+                $ref: '#/components/schemas/InvoiceDetailedResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '422':
@@ -63,7 +75,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvoiceResponse'
+                $ref: '#/components/schemas/InvoiceDetailedResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -87,7 +99,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvoiceResponse'
+                $ref: '#/components/schemas/InvoiceDetailedResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -219,9 +231,14 @@ components:
           type: string
           description: Mensagem de confirmação ou detalhamento
 
-    InvoiceResponse:
+    # =========================================================================
+    # Invoice Schemas (ADR-0003: DTO Granularity & Symmetry)
+    # Padrões aplicados:
+    # - InvoiceDetailedResponse: Detalhes completos com auditoria e _links
+    # =========================================================================
+    InvoiceDetailedResponse:
       type: object
-      description: Detalhes completos da fatura de cobrança
+      description: Detalhes completos da fatura de cobrança (inclui metadados de pagamento e OS)
       properties:
         id:
           type: string
@@ -256,10 +273,46 @@ components:
           type: integer
           format: int64
           description: Versão de controle de concorrência otimista
+        _links:
+          type: object
+          description: Links hipermídia para navegação conforme padrão HAL / Spring HATEOAS
+          properties:
+            self:
+              $ref: '#/components/schemas/Link'
+            workOrder:
+              $ref: '#/components/schemas/Link'
 
+    # =========================================================================
+    # Hypermedia Link Schema (RFC 8288 / HAL Specification)
+    # Padrão: Richardson Maturity Model Level 3 & RFC 6570 (URI Template)
+    # Decisão de Design: O atributo 'example' adota URI canônica neutra
+    # (/api/v1/resources/{id}) para evitar acoplamento a domínios específicos
+    # em schemas genéricos e reutilizáveis entre múltiplos recursos.
+    # =========================================================================
+    Link:
+      type: object
+      description: Link hipermídia conforme especificação HAL / RFC 8288
+      required:
+        - href
+      properties:
+        href:
+          type: string
+          example: '/api/v1/resources/3fa85f64-5717-4562-b3fc-2c963f66afa6'
+          description: URI de destino do recurso ou ação hipermídia
+        templated:
+          type: boolean
+          example: false
+          description: Indica se a URI é um URI Template (RFC 6570)
+
+    # =========================================================================
+    # Error Handling Schema (RFC 7807 / RFC 9457: Problem Details for HTTP APIs)
+    # Padrão canônico de respostas de erro para APIs HTTP/REST.
+    # Provê semântica unificada de falhas operacionais e de regras de negócio.
+    # Content-Type correspondente: application/problem+json
+    # =========================================================================
     ProblemDetail:
       type: object
-      description: Estrutura padrão de erro RFC 7807/9457
+      description: Estrutura padrão de erro conforme especificações RFC 7807 e RFC 9457
       properties:
         type:
           type: string
