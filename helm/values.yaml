@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/15soat-phase4-api-billing
+  repository: 777617341474.dkr.ecr.us-east-1.amazonaws.com/15soat-phase4-api-billing
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -28,7 +28,7 @@ resources:
     cpu: 1000m
     memory: 1024Mi
   requests:
-    cpu: 250m
+    cpu: 100m
     memory: 512Mi
 
 autoscaling:
@@ -37,7 +37,10 @@ autoscaling:
   maxReplicas: 10
   targetCPUUtilizationPercentage: 75
 
+database:
+  secretName: "billing-db-credentials"
+
 env:
   SPRING_PROFILES_ACTIVE: "prd"
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://rds-postgres.internal:5432/billing_db"
-  KAFKA_BOOTSTRAP_SERVERS: "kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://billing-db-prd.ck6ly7e0ierf.us-east-1.rds.amazonaws.com:5432/billing_db"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-cluster-kafka-bootstrap.infra-kafka.svc.cluster.local:9092"

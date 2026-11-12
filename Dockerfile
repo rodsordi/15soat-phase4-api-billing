@@ -1,27 +1,14 @@
-# Stage 1: Build stage
-FROM maven:3.9-eclipse-temurin-25 AS builder
-WORKDIR /workspace
-
-# Copy POMs and source
-COPY pom.xml .
-COPY domain/pom.xml domain/
-COPY domain/src domain/src
-COPY application/pom.xml application/
-COPY application/src application/src
-
-# Package application jar
-RUN mvn clean package -DskipTests
-
-# Stage 2: Runtime distroless/minimal JRE container
+# Stage 1: Runtime minimal JRE container
 FROM eclipse-temurin:25-jre-noble AS runner
 
 # Create dedicated non-root user and group
-RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
+RUN groupadd -r -g 10001 appgroup && useradd -r -u 10001 -g appgroup appuser
 
 WORKDIR /app
 
-# Copy executable jar from builder
-COPY --from=builder /workspace/application/target/billing-application-*.jar app.jar
+# Support pre-built JAR from CI runner or builder fallback
+ARG JAR_FILE=application/target/billing-application-*.jar
+COPY ${JAR_FILE} app.jar
 
 # Enforce secure file ownership
 RUN chown -R appuser:appgroup /app

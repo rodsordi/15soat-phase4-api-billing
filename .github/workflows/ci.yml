@@ -1,15 +1,37 @@
-name: Billing Service CI/CD
+name: "Billing Service CI/CD"
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - master
+      - main
+      - feature/phase4
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - master
+      - main
+      - feature/phase4
+  workflow_dispatch:
+    inputs:
+      deploy_to_eks:
+        description: 'Deploy to Amazon EKS cluster'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: ci-cd-billing-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
-  build:
-    name: Build, Verify Architecture & Test
+  build-and-test:
+    name: "Build, Test & Verify Architecture"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -22,5 +44,110 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Compile and Run Architecture Verification
-        run: mvn clean test -B
+      - name: Compile and Run Architecture Verification & Tests
+        run: mvn clean test -B -s .github/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Executable JAR
+        run: mvn package -DskipTests -B -s .github/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Helm Chart Syntax
+        run: |
+          if command -v helm &> /dev/null; then
+            helm lint ./helm
+          else
+            echo "Installing Helm CLI..."
+            curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+            helm lint ./helm
+          fi
+
+      - name: Archive Executable JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-application-jar
+          path: application/target/billing-application-*.jar
+          retention-days: 1
+
+  deploy-to-eks:
+    name: "Package Container & Deploy to EKS"
+    needs: build-and-test
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy_to_eks == true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-1' }}
+      ECR_REPOSITORY: 15soat-phase4-api-billing
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || secrets.EKS_CLUSTER_NAME || 'fiap-workshop-eks' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Executable JAR Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: billing-application-jar
+          path: application/target
+
+      - name: Configure AWS Credentials (AWS Academy Support)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR Repository Exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ env.ECR_REPOSITORY }}" --region "${{ env.AWS_REGION }}" 2>/dev/null || \
+          aws ecr create-repository --repository-name "${{ env.ECR_REPOSITORY }}" --region "${{ env.AWS_REGION }}"
+
+      - name: Build, Tag and Push Container Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg JAR_FILE=application/target/billing-application-*.jar \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Configure kubectl Context for EKS
+        run: |
+          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+
+      - name: Synchronize Database Credentials from AWS Secrets Manager
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id billing-db-prd-credentials-prd --region "${{ env.AWS_REGION }}" --query SecretString --output text)
+          DB_USER=$(echo "$SECRET_JSON" | jq -r '.username')
+          DB_PASS=$(echo "$SECRET_JSON" | jq -r '.password')
+          kubectl create secret generic billing-db-credentials \
+            --namespace default \
+            --from-literal=username="$DB_USER" \
+            --from-literal=password="$DB_PASS" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Service to Amazon EKS via Helm
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          helm upgrade --install api-billing ./helm \
+            --namespace default \
+            --set image.repository=$ECR_REGISTRY/$ECR_REPOSITORY \
+            --set image.tag=$IMAGE_TAG
+
+      - name: Verify Kubernetes Deployment Rollout
+        run: |
+          kubectl rollout status deployment/api-billing --namespace default --timeout=180s
