@@ -46,17 +46,24 @@ spec:
               value: {{ .Values.env.KAFKA_BOOTSTRAP_SERVERS | quote }}
             - name: MERCADOPAGO_ACCESS_TOKEN
               value: {{ .Values.env.MERCADOPAGO_ACCESS_TOKEN | quote }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: {{ .Values.service.port }}
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: {{ .Values.service.port }}
-            initialDelaySeconds: 15
-            periodSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
