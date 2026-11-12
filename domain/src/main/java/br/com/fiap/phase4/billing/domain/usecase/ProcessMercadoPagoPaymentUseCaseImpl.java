@@ -6,6 +6,7 @@ import br.com.fiap.phase4.billing.domain.port.out.BillingEventPublisherPort;
 import br.com.fiap.phase4.billing.domain.port.out.InvoiceRepositoryPort;
 import br.com.fiap.phase4.billing.domain.port.out.MercadoPagoGatewayPort;
 import br.com.fiap.phase4.billing.domain.port.out.MercadoPagoGatewayPort.MercadoPagoCheckout;
+import br.com.fiap.phase4.billing.domain.port.out.MercadoPagoGatewayPort.PaymentVerificationResult;
 import br.com.fiap.phase4.commons.domain.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,24 +35,48 @@ public class ProcessMercadoPagoPaymentUseCaseImpl implements ProcessMercadoPagoP
 
     @Override
     public void handleWebhookNotification(String action, String paymentId, String traceId) {
-        boolean isApproved = mercadoPagoGateway.verifyPaymentStatus(paymentId);
-        if (!isApproved) {
+        PaymentVerificationResult verification = mercadoPagoGateway.verifyPaymentStatus(paymentId);
+        if (verification == null || verification.status() == null) {
             return;
         }
 
         repository.findByExternalPaymentId(paymentId).ifPresent(invoice -> {
-            invoice.markAsPaid(paymentId);
-            repository.save(invoice);
-            eventPublisher.publishPaymentConfirmed(invoice, traceId);
+            switch (verification.status()) {
+                case APPROVED -> {
+                    invoice.markAsPaid(paymentId);
+                    repository.save(invoice);
+                    eventPublisher.publishPaymentConfirmed(invoice, traceId);
+                }
+                case REJECTED -> {
+                    String reason = verification.rejectionReason() != null ? verification.rejectionReason() : "Payment rejected by gateway";
+                    invoice.markAsFailed(reason);
+                    repository.save(invoice);
+                    eventPublisher.publishPaymentFailed(invoice, reason, traceId);
+                }
+                case PENDING -> {
+                    // Payment is still awaiting customer completion; no state transition required
+                }
+            }
         });
     }
 
     @Override
     public void processPaymentFailure(UUID workOrderId, String reason, String traceId) {
         repository.findByWorkOrderId(workOrderId).ifPresent(invoice -> {
-            invoice.cancel(reason);
+            invoice.markAsFailed(reason);
             repository.save(invoice);
             eventPublisher.publishPaymentFailed(invoice, reason, traceId);
+        });
+    }
+
+    @Override
+    public void processCompensatingRefund(UUID workOrderId, String reason, String traceId) {
+        repository.findByWorkOrderId(workOrderId).ifPresent(invoice -> {
+            invoice.refund();
+            if (invoice.getExternalPaymentId() != null) {
+                mercadoPagoGateway.refundPayment(invoice.getExternalPaymentId());
+            }
+            repository.save(invoice);
         });
     }
 }

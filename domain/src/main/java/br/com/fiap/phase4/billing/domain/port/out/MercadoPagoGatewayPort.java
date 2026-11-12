@@ -11,9 +11,21 @@ public interface MercadoPagoGatewayPort {
             String status
     ) {}
 
+    enum PaymentVerificationStatus {
+        APPROVED,
+        REJECTED,
+        PENDING
+    }
+
+    record PaymentVerificationResult(
+            PaymentVerificationStatus status,
+            String externalPaymentId,
+            String rejectionReason
+    ) {}
+
     MercadoPagoCheckout createCheckout(Invoice invoice);
 
-    boolean verifyPaymentStatus(String externalPaymentId);
+    PaymentVerificationResult verifyPaymentStatus(String externalPaymentId);
 
     void refundPayment(String externalPaymentId);
 }
