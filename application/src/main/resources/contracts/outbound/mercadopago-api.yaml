@@ -1,0 +1,534 @@
+openapi: 3.0.3
+info:
+  title: Mercado Pago In-Person Payments - QR Code Orders API
+  version: 1.0.0
+  description: |
+    Especificação OpenAPI 3.0 para integração com a API de Processamento de Pagamentos via QR Code do Mercado Pago.
+    Permite criar pedidos de pagamento (estático, dinâmico e híbrido), consultar status de pedidos em tempo real,
+    cancelar pedidos pendentes e realizar estornos totais (refunds).
+
+    Referência Oficial: https://www.mercadopago.com.br/developers/pt/docs/qr-code/payment-processing
+servers:
+  - url: https://api.mercadopago.com
+    description: Servidor de Produção / Sandbox Mercado Pago
+
+paths:
+  /v1/orders:
+    post:
+      summary: Criar pedido de pagamento QR Code
+      description: |
+        Cria uma nova ordem de pagamento vinculada a um caixa (POS) previamente cadastrado.
+        Suporta os modelos static, dynamic e hybrid.
+      operationId: createQrOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          description: Chave única de idempotência (UUID v4) para evitar requisições duplicadas.
+          schema:
+            type: string
+            format: uuid
+            example: 0d5020ed-1af6-469c-ae06-c3bec19954bb
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Pedido criado com sucesso com os dados de transação e QR Code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/orders/{order_id}:
+    get:
+      summary: Consultar dados e status de um pedido
+      description: |
+        Consulta os dados detalhados de uma ordem de pagamento e suas transações associadas
+        (pagamentos ou reembolsos), retornando status em tempo real.
+      operationId: getQrOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Identificador único da ordem gerado pelo Mercado Pago (ex: ORD01K371WBFDS4MD9JG0K8ZMECBE).
+          schema:
+            type: string
+            example: ORD01K371WBFDS4MD9JG0K8ZMECBE
+      responses:
+        '200':
+          description: Dados detalhados da ordem encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Cancelar pedido de pagamento via atualização de status
+      description: |
+        Cancela uma ordem existente atualizando seu status para 'canceled'.
+        A ordem deve estar obrigatoriamente no status 'created'.
+      operationId: cancelQrOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Identificador da ordem a ser cancelada.
+          schema:
+            type: string
+            example: ORD01K371WBFDS4MD9JG0K8ZMECBE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrderRequest'
+      responses:
+        '200':
+          description: Pedido cancelado com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/orders/{order_id}/cancel:
+    post:
+      summary: Cancelar pedido de pagamento via endpoint dedicado
+      description: |
+        Cancela uma ordem cujo status atual seja 'created'. Caso a ordem esteja em outro status,
+        retornará erro de conflito (HTTP 409).
+      operationId: cancelQrOrderPost
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Identificador da ordem a ser cancelada.
+          schema:
+            type: string
+            example: ORD01K371WBFDS4MD9JG0K8ZMECBE
+      responses:
+        '200':
+          description: Pedido cancelado com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/orders/{order_id}/refunds:
+    post:
+      summary: Estornar um pedido de pagamento
+      description: |
+        Realiza o estorno total do valor de uma ordem de pagamento. A ordem deve estar com status 'processed'.
+        Disponível até 180 dias após a liquidação do pagamento.
+      operationId: refundQrOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          description: Identificador da ordem a ser estornada.
+          schema:
+            type: string
+            example: ORD01JV391F8YM8EDEAG8CWZ0GM0N
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          description: Chave única de idempotência (UUID v4) para a transação de estorno.
+          schema:
+            type: string
+            format: uuid
+            example: 91b59be9-27b8-449f-a6bd-32dca8b424cd
+      responses:
+        '200':
+          description: Estorno solicitado com sucesso. Retorna status 'processed' e o detalhe do estorno.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Chave de acesso privada de produção ou sandbox (Access Token) iniciada com 'APP_USR'.
+
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required:
+        - type
+        - external_reference
+        - config
+        - transactions
+      properties:
+        type:
+          type: string
+          enum: [qr]
+          example: qr
+          description: Tipo de ordem. Para pagamentos presenciais via QR Code, o único valor permitido é 'qr'.
+        total_amount:
+          type: number
+          format: double
+          example: 50.00
+          description: Valor total da ordem, correspondente à soma das transações.
+        description:
+          type: string
+          maxLength: 150
+          example: Servico de Manutencao e Troca de Oleo
+          description: Descrição do produto ou serviço (máximo 150 caracteres, sem dados PII).
+        external_reference:
+          type: string
+          maxLength: 64
+          example: OS-778899-INV-1234
+          description: Identificador de referência externa exclusivo do sistema de origem.
+        expiration_time:
+          type: string
+          example: PT16M
+          description: Período de expiração no formato ISO 8601 (padrão de 15 minutos se omitido).
+        config:
+          $ref: '#/components/schemas/QrConfig'
+        transactions:
+          $ref: '#/components/schemas/OrderTransactionsRequest'
+        items:
+          type: array
+          description: Itens descritivos que compõem o pedido.
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        discounts:
+          $ref: '#/components/schemas/OrderDiscounts'
+
+    QrConfig:
+      type: object
+      required:
+        - qr
+      properties:
+        qr:
+          type: object
+          required:
+            - external_pos_id
+          properties:
+            external_pos_id:
+              type: string
+              example: STORE001POS001
+              description: Identificador externo do caixa físico (POS) previamente cadastrado no Mercado Pago.
+            mode:
+              type: string
+              enum: [static, dynamic, hybrid]
+              default: static
+              example: dynamic
+              description: |
+                Modelo de QR Code:
+                - static: O pedido é vinculado ao QR code impresso no caixa físico.
+                - dynamic: Gera um QR code exclusivo retornado no campo type_response.qr_data.
+                - hybrid: Permite pagamento tanto pelo QR fixo do caixa quanto pelo dinâmico gerado.
+
+    OrderTransactionsRequest:
+      type: object
+      required:
+        - payments
+      properties:
+        payments:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: object
+            required:
+              - amount
+            properties:
+              amount:
+                type: number
+                format: double
+                example: 50.00
+                description: Valor monetário da transação de pagamento.
+
+    OrderItem:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Oleo Motor Sintetico 5W30
+        unit_price:
+          type: number
+          format: double
+          example: 50.00
+        unit_measure:
+          type: string
+          example: unit
+        external_code:
+          type: string
+          example: MAT-777489134
+        quantity:
+          type: integer
+          example: 1
+        external_categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: auto_parts
+
+    OrderDiscounts:
+      type: object
+      properties:
+        payment_methods:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                example: account_money
+              new_total_amount:
+                type: number
+                format: double
+                example: 47.28
+
+    CancelOrderRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [canceled]
+          example: canceled
+
+    OrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ORD01K372G4J4FXZ9HGHZMJMGGPKE
+          description: Identificador único imutável da ordem gerado pelo Mercado Pago.
+        type:
+          type: string
+          example: qr
+        processing_mode:
+          type: string
+          example: automatic
+        external_reference:
+          type: string
+          example: OS-778899-INV-1234
+        description:
+          type: string
+          example: Servico de Manutencao e Troca de Oleo
+        total_amount:
+          type: string
+          example: '50.00'
+        expiration_time:
+          type: string
+          example: PT16M
+        country_code:
+          type: string
+          example: BRA
+        user_id:
+          type: string
+          example: '123456789'
+        status:
+          type: string
+          enum: [created, processed, canceled, refunded]
+          example: created
+          description: Estado da ordem no Mercado Pago.
+        status_detail:
+          type: string
+          example: created
+        currency:
+          type: string
+          example: BRL
+        created_date:
+          type: string
+          format: date-time
+          example: '2025-08-21T19:43:10.130Z'
+        last_updated_date:
+          type: string
+          format: date-time
+          example: '2025-08-21T19:43:10.130Z'
+        integration_data:
+          type: object
+          properties:
+            application_id:
+              type: string
+        transactions:
+          $ref: '#/components/schemas/OrderTransactionsResponse'
+        config:
+          $ref: '#/components/schemas/QrConfig'
+        type_response:
+          $ref: '#/components/schemas/QrTypeResponse'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        discounts:
+          $ref: '#/components/schemas/OrderDiscounts'
+
+    OrderTransactionsResponse:
+      type: object
+      properties:
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentTransaction'
+
+    PaymentTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: PAY01K372G4J4FXZ9HGHZMKWSQS20
+          description: Identificador único do pagamento (necessário para consulta e reconciliação).
+        amount:
+          type: string
+          example: '50.00'
+        status:
+          type: string
+          example: created
+        status_detail:
+          type: string
+          example: ready_to_process
+
+    QrTypeResponse:
+      type: object
+      description: Dados específicos para geração e renderização do QR Code dinâmico/híbrido.
+      properties:
+        qr_data:
+          type: string
+          example: 00020101021226580014br.gov.bcb.qr01368ee55a9c-7db3-41e0-a8cd-fbff4d4765b5204000053039865802BR5925OFICINA FIAP6009SAO PAULO61088051040062070503***630442E4
+          description: String canônica no padrão EMVCo (Pix copia-e-cola) pronta para ser codificada em imagem QR Code.
+
+    RefundOrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ORD01JV391F8YM8EDEAG8CWZ0GM0N
+        status:
+          type: string
+          example: processed
+        status_detail:
+          type: string
+          example: accredited
+        transactions:
+          type: object
+          properties:
+            refunds:
+              type: array
+              items:
+                $ref: '#/components/schemas/RefundTransaction'
+
+    RefundTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: REF01JW7YS4YHV543DJ6JGYZBX6A0
+        transaction_id:
+          type: string
+          example: PAY01JVMKQQE6YW97CEQN3MJ666HD
+        reference_id:
+          type: string
+          example: REF_EXT_1234
+        amount:
+          type: string
+          example: '50.00'
+        status:
+          type: string
+          example: processing
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Invalid transaction or order state
+        error:
+          type: string
+          example: bad_request
+        status:
+          type: integer
+          example: 400
+        cause:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              description:
+                type: string
+
+  responses:
+    BadRequest:
+      description: Requisição inválida ou parâmetros incorretos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Falha de autenticação (Access Token inválido, expirado ou ausente).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ordem de pagamento não encontrada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflito de estado da ordem (ex: tentativa de cancelamento de ordem já processada).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Erro interno no gateway do Mercado Pago.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

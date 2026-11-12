@@ -12,4 +12,6 @@ public interface ProcessMercadoPagoPaymentUseCase {
     void handleWebhookNotification(String action, String paymentId, String traceId);
 
     void processPaymentFailure(UUID workOrderId, String reason, String traceId);
+
+    void processCompensatingRefund(UUID workOrderId, String reason, String traceId);
 }
