@@ -7,6 +7,8 @@ import br.com.fiap.phase4.billing.domain.port.in.ProcessMercadoPagoPaymentUseCas
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -19,7 +21,8 @@ public class PaymentWebhookController implements PaymentWebhookApi {
     private final ProcessMercadoPagoPaymentUseCase processMercadoPagoPaymentUseCase;
 
     @Override
-    public ResponseEntity<WebhookResponse> processPaymentWebhook(MercadoPagoWebhookRequest request) {
+    @PostMapping({"/api/v1/payments/mercadopago/webhook", "/api/v1/payments/webhook"})
+    public ResponseEntity<WebhookResponse> processPaymentWebhook(@RequestBody MercadoPagoWebhookRequest request) {
         String action = request.getAction();
         String paymentId = request.getData() != null ? request.getData().getId() : null;
         String traceId = UUID.randomUUID().toString();

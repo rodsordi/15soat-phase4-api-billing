@@ -67,7 +67,7 @@ public class Invoice {
         this.externalPaymentId = externalPaymentId;
         this.createdAt = createdAt != null ? createdAt : Instant.now();
         this.updatedAt = updatedAt != null ? updatedAt : Instant.now();
-        this.version = version != null ? version : 0L;
+        this.version = version;
     }
 
     public Invoice(UUID id, UUID workOrderId, String customerDocument, BigDecimal amount,
@@ -80,17 +80,23 @@ public class Invoice {
         this.externalPaymentId = externalPaymentId;
         this.createdAt = createdAt != null ? createdAt : Instant.now();
         this.updatedAt = updatedAt != null ? updatedAt : Instant.now();
-        this.version = version != null ? version : 0L;
+        this.version = version;
     }
 
     public Invoice(UUID id, UUID workOrderId, CpfOrCnpj customerDocument, Money amount,
                    InvoiceStatus status, String externalPaymentId, Instant createdAt, Instant updatedAt) {
-        this(id, workOrderId, customerDocument, amount, status, externalPaymentId, createdAt, updatedAt, 0L);
+        this(id, workOrderId, customerDocument, amount, status, externalPaymentId, createdAt, updatedAt, null);
     }
 
     public static Invoice create(UUID workOrderId, CpfOrCnpj customerDocument, Money amount) {
+        Objects.requireNonNull(workOrderId, "Work Order ID is required");
+        Objects.requireNonNull(customerDocument, "Customer document is required");
+        Objects.requireNonNull(amount, "Amount is required");
+        if (!amount.isPositive()) {
+            throw new IllegalArgumentException("Invoice amount must be strictly positive");
+        }
         return new Invoice(UUID.randomUUID(), workOrderId, customerDocument, amount,
-                InvoiceStatus.PENDING, null, Instant.now(), Instant.now(), 0L);
+                InvoiceStatus.PENDING, null, Instant.now(), Instant.now(), null);
     }
 
     public CpfOrCnpj getCustomerDocument() {

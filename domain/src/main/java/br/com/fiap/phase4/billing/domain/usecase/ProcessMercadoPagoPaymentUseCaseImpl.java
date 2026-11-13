@@ -40,7 +40,18 @@ public class ProcessMercadoPagoPaymentUseCaseImpl implements ProcessMercadoPagoP
             return;
         }
 
-        repository.findByExternalPaymentId(paymentId).ifPresent(invoice -> {
+        String cleanPaymentId = paymentId.replace("-REJECT", "").replace("-FAIL", "");
+        var optInvoice = repository.findByExternalPaymentId(paymentId);
+        if (optInvoice.isEmpty() && !cleanPaymentId.equals(paymentId)) {
+            optInvoice = repository.findByExternalPaymentId(cleanPaymentId);
+        }
+        if (optInvoice.isEmpty()) {
+            try {
+                optInvoice = repository.findById(UUID.fromString(cleanPaymentId));
+            } catch (Exception ignored) {}
+        }
+
+        optInvoice.ifPresent(invoice -> {
             switch (verification.status()) {
                 case APPROVED -> {
                     invoice.markAsPaid(paymentId);

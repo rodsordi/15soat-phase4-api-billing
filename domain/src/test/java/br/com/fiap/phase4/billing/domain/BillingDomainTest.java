@@ -67,7 +67,7 @@ class BillingDomainTest {
             assertThat(result.getWorkOrderId()).isEqualTo(workOrderId);
             assertThat(result.getAmount().amount()).isEqualByComparingTo("350.00");
             assertThat(result.getStatus()).isEqualTo(InvoiceStatus.PENDING);
-            assertThat(result.getVersion()).isEqualTo(0L);
+            assertThat(result.getVersion()).isNull();
             verify(repository).save(any(Invoice.class));
         }
 
