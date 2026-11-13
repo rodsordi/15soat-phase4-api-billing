@@ -34,6 +34,7 @@
     <modules>
         <module>domain</module>
         <module>application</module>
+        <module>iandt</module>
     </modules>
 
     <dependencyManagement>
@@ -47,6 +48,11 @@
             <dependency>
                 <groupId>br.com.fiap.phase4</groupId>
                 <artifactId>billing-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>billing-iandt</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
