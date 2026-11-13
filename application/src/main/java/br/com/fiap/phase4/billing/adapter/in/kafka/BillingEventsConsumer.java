@@ -29,6 +29,12 @@ public class BillingEventsConsumer {
     )
     public void consumeWorkOrderApproved(ConsumerRecord<String, Map<String, Object>> record) {
         log.info("Received message on topic work-order-events, key: {}", record.key());
+        String eventType = extractEventType(record.value());
+        if (eventType != null && !"WorkOrderApprovedEvent".equals(eventType)) {
+            log.debug("Ignoring event of type '{}' on work-order-events topic", eventType);
+            return;
+        }
+
         Map<String, Object> payload = extractPayload(record.value());
         if (payload == null) {
             return;
@@ -66,6 +72,12 @@ public class BillingEventsConsumer {
             @Header(name = "X-Trace-Id", required = false) byte[] traceIdBytes
     ) {
         log.info("Received message on topic execution-events, key: {}", record.key());
+        String eventType = extractEventType(record.value());
+        if (eventType != null && !"ExecutionFailedEvent".equals(eventType)) {
+            log.debug("Ignoring event of type '{}' on execution-events topic", eventType);
+            return;
+        }
+
         Map<String, Object> payload = extractPayload(record.value());
         if (payload == null) {
             return;
@@ -101,5 +113,19 @@ public class BillingEventsConsumer {
             return (Map<String, Object>) inner;
         }
         return body;
+    }
+
+    private String extractEventType(Map<String, Object> body) {
+        if (body == null) {
+            return null;
+        }
+        if (body.get("metadata") instanceof Map<?, ?> meta) {
+            Object type = meta.get("eventType");
+            if (type != null) {
+                return type.toString();
+            }
+        }
+        Object type = body.get("eventType");
+        return type != null ? type.toString() : null;
     }
 }

@@ -1,52 +1,34 @@
-# Plano de Implementação: Implementação da Camada Application com Entidades no Domínio
+# Plano de Implementação: Filtragem Seletiva de Eventos no Billing Consumer
 
-> **Decisão do Usuário**: Opção 2 - Mapeamento JPA Direto no Domínio (Padrão api-work-order e ADR 0001)
+> **Decisão do Usuário**: Opção 1 - Filtragem Defensiva por Discriminador eventType em BillingEventsConsumer
 > **Status**: Aprovado para Execução
 
 ---
 
-## 1. Escopo da Implementação
-
-Este plano formaliza a implementação da camada `application` e o mapeamento das anotações de persistência JPA diretamente na entidade de domínio `Invoice`, em conformidade com a decisão do usuário e o padrão adotado no microsserviço irmão `15soat-phase4-api-work-order` e na ADR 0001.
+## 1. Contexto e Motivação
+Durante a execução da suíte E2E em ambiente `prd`, o cenário de retransmissão de webhook (`payment_webhook_processing.feature`) falhou porque a fatura foi indevidamente transicionada para `REFUNDED`.
+A investigação revelou que o método `consumeExecutionFailed` em `BillingEventsConsumer.java` consome o tópico `execution-events` sem filtrar pelo discriminador `eventType`. Dessa forma, o evento `ExecutionStartedEvent` (emitido quando a ordem de serviço inicia a execução) foi interpretado como `ExecutionFailedEvent`, disparando o estorno compensatório.
 
 ---
 
-## 2. Etapas de Execução
+## 2. Escopo das Alterações
 
-### Etapa 1: Atualização do Módulo de Domínio (`billing-domain`)
-* Adicionar `jakarta.persistence-api` no `domain/pom.xml`.
-* Anotar a classe `Invoice` com `@Entity`, `@Table(name = "invoice")`, `@Id`, `@Column`, `@Enumerated(EnumType.STRING)` e `@Version`.
-* Preservar o encapsulamento e a imutabilidade dos métodos de domínio e Value Objects (`CpfOrCnpj`, `Money`).
-* Garantir 100% dos testes unitários e ArchUnit passando sem quebras.
+### 2.1. `15soat-phase4-api-billing`
+- **Arquivo**: `application/src/main/java/br/com/fiap/phase4/billing/adapter/in/kafka/BillingEventsConsumer.java`
+  - Implementar método auxiliar `extractEventType(Map<String, Object> body)`.
+  - No método `consumeExecutionFailed`, verificar se `eventType != null && !"ExecutionFailedEvent".equals(eventType)`. Se for diferente, registrar log em nível debug e descartar a mensagem sem acionar o use case de estorno.
+  - No método `consumeWorkOrderApproved`, verificar se `eventType != null && !"WorkOrderApprovedEvent".equals(eventType)`. Se for diferente, descartar a mensagem sem acionar a criação de fatura.
+- **Arquivo**: `application/src/test/java/br/com/fiap/phase4/billing/adapter/in/kafka/BillingEventsConsumerTest.java`
+  - Adicionar teste unitário validando que eventos com `eventType="ExecutionStartedEvent"` ou `eventType="ExecutionCompletedEvent"` são ignorados por `consumeExecutionFailed`.
+  - Adicionar teste unitário validando que eventos não correspondentes a `WorkOrderApprovedEvent` são ignorados por `consumeWorkOrderApproved`.
 
-### Etapa 2: Implementação da Persistência na Camada `application`
-* Criar interface `SpringDataInvoiceRepository extends JpaRepository<Invoice, UUID>` com métodos de consulta derivados:
-  * `Optional<Invoice> findByWorkOrderId(UUID workOrderId);`
-  * `Optional<Invoice> findByExternalPaymentId(String externalPaymentId);`
-* Implementar o adaptador de saída `InvoiceRepositoryAdapter implements InvoiceRepositoryPort` delegando para o repositório JPA.
+---
 
-### Etapa 3: Integração HTTP Outbound com Mercado Pago
-* Implementar o cliente HTTP e adaptador `MercadoPagoGatewayAdapter implements MercadoPagoGatewayPort`:
-  * Criação de Checkout / QR Code PIX baseado na especificação `contracts/outbound/mercadopago-api.yaml`.
-  * Consulta e reconciliação de status de pagamento (`PaymentVerificationResult`).
-  * Processamento de estorno / reembolso (`refundPayment`).
-
-### Etapa 4: Adaptadores de Mensageria Kafka (Entrada e Saída)
-* Consumidor Kafka:
-  * Consumir `WorkOrderApprovedEvent` do tópico `work-order-events` e chamar `CreateInvoiceUseCase`.
-  * Consumir `ExecutionFailedEvent` do tópico `execution-events` e chamar `processCompensatingRefund`.
-* Produtor Kafka (`BillingEventPublisherAdapter implements BillingEventPublisherPort`):
-  * Publicar `PaymentConfirmedEvent` no tópico `payment-events`.
-  * Publicar `PaymentFailedEvent` no tópico `payment-events`.
-
-### Etapa 5: Adaptadores de Entrada REST (Controllers HTTP)
-* Implementar `InvoiceController` e `PaymentWebhookController` aderentes ao `openapi.yaml`:
-  * `POST /api/v1/invoices`
-  * `GET /api/v1/invoices/{id}`
-  * `GET /api/v1/invoices/work-order/{workOrderId}`
-  * `POST /api/v1/payments/mercadopago/checkout`
-  * `POST /api/v1/payments/mercadopago/webhook` (Idempotente)
-
-### Etapa 6: Verificação & Quality Gate
-* Executar build completo com Maven (`mvn clean test`).
-* Validar cobertura de testes unitários e de integração de adaptadores.
+## 3. Validação e Quality Gate
+1. Executar suíte de testes unitários localmente via Maven:
+   ```powershell
+   mvn test -f C:\git\fiap\phase4\15soat-phase4-api-billing\pom.xml
+   ```
+2. Submeter ao auditor sentinela de código.
+3. Solicitar autorização do usuário para commit, push e abertura de PR.
+4. Após merge e conclusão da pipeline CI/CD, executar a suíte E2E completa para validar 53/53 cenários aprovados.

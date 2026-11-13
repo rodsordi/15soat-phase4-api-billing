@@ -82,4 +82,56 @@ class BillingEventsConsumerTest {
                 eq(workOrderId), eq("MECHANIC_UNAVAILABLE"), eq("trace-test-123")
         );
     }
+
+    @Test
+    @DisplayName("Should ignore ExecutionStartedEvent on execution-events topic without triggering refund")
+    void shouldIgnoreExecutionStartedEvent() {
+        UUID workOrderId = UUID.randomUUID();
+        Map<String, Object> message = Map.of(
+                "metadata", Map.of("eventType", "ExecutionStartedEvent"),
+                "payload", Map.of("workOrderId", workOrderId.toString())
+        );
+        ConsumerRecord<String, Map<String, Object>> record =
+                new ConsumerRecord<>("execution-events", 0, 0L, workOrderId.toString(), message);
+
+        consumer.consumeExecutionFailed(record, null);
+
+        verify(processMercadoPagoPaymentUseCase, never()).processCompensatingRefund(any(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Should ignore ExecutionCompletedEvent on execution-events topic without triggering refund")
+    void shouldIgnoreExecutionCompletedEvent() {
+        UUID workOrderId = UUID.randomUUID();
+        Map<String, Object> message = Map.of(
+                "metadata", Map.of("eventType", "ExecutionCompletedEvent"),
+                "payload", Map.of("workOrderId", workOrderId.toString())
+        );
+        ConsumerRecord<String, Map<String, Object>> record =
+                new ConsumerRecord<>("execution-events", 0, 0L, workOrderId.toString(), message);
+
+        consumer.consumeExecutionFailed(record, null);
+
+        verify(processMercadoPagoPaymentUseCase, never()).processCompensatingRefund(any(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Should ignore non-WorkOrderApprovedEvent on work-order-events topic")
+    void shouldIgnoreNonApprovedWorkOrderEvent() {
+        UUID workOrderId = UUID.randomUUID();
+        Map<String, Object> message = Map.of(
+                "metadata", Map.of("eventType", "WorkOrderCreatedEvent"),
+                "payload", Map.of(
+                        "workOrderId", workOrderId.toString(),
+                        "customerDocument", "52998224725",
+                        "totalAmount", "350.00"
+                )
+        );
+        ConsumerRecord<String, Map<String, Object>> record =
+                new ConsumerRecord<>("work-order-events", 0, 0L, workOrderId.toString(), message);
+
+        consumer.consumeWorkOrderApproved(record);
+
+        verify(createInvoiceUseCase, never()).create(any(), anyString(), any());
+    }
 }
