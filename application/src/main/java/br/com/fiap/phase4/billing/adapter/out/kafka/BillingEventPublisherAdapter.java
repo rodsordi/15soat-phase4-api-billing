@@ -2,6 +2,7 @@ package br.com.fiap.phase4.billing.adapter.out.kafka;
 
 import br.com.fiap.phase4.billing.domain.model.Invoice;
 import br.com.fiap.phase4.billing.domain.port.out.BillingEventPublisherPort;
+import br.com.fiap.phase4.commons.kafka.event.EventEnvelope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class BillingEventPublisherAdapter implements BillingEventPublisherPort {
 
     public static final String PAYMENT_EVENTS_TOPIC = "payment-events";
+    public static final String SOURCE_SERVICE = "15soat-phase4-api-billing";
     public static final String TRACE_HEADER = "X-Trace-Id";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -33,10 +35,17 @@ public class BillingEventPublisherAdapter implements BillingEventPublisherPort {
                 "amount", invoice.getAmount() != null ? invoice.getAmount().amount().doubleValue() : 0.0
         );
 
+        var envelope = EventEnvelope.of(
+                "PaymentConfirmedEvent",
+                SOURCE_SERVICE,
+                traceId,
+                payload
+        );
+
         ProducerRecord<String, Object> record = new ProducerRecord<>(
                 PAYMENT_EVENTS_TOPIC,
                 invoice.getWorkOrderId().toString(),
-                payload
+                envelope
         );
 
         if (traceId != null && !traceId.isBlank()) {
@@ -63,10 +72,17 @@ public class BillingEventPublisherAdapter implements BillingEventPublisherPort {
                 "reason", reason != null ? reason : "UNKNOWN"
         );
 
+        var envelope = EventEnvelope.of(
+                "PaymentFailedEvent",
+                SOURCE_SERVICE,
+                traceId,
+                payload
+        );
+
         ProducerRecord<String, Object> record = new ProducerRecord<>(
                 PAYMENT_EVENTS_TOPIC,
                 invoice.getWorkOrderId().toString(),
-                payload
+                envelope
         );
 
         if (traceId != null && !traceId.isBlank()) {
