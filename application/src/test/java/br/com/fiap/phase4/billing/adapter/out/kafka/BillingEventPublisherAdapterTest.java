@@ -3,6 +3,7 @@ package br.com.fiap.phase4.billing.adapter.out.kafka;
 import br.com.fiap.phase4.billing.domain.model.Invoice;
 import br.com.fiap.phase4.commons.domain.vo.CpfOrCnpj;
 import br.com.fiap.phase4.commons.domain.vo.Money;
+import br.com.fiap.phase4.commons.kafka.event.EventEnvelope;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -53,8 +54,11 @@ class BillingEventPublisherAdapterTest {
         ProducerRecord<String, Object> record = captor.getValue();
         assertThat(record.topic()).isEqualTo("payment-events");
         assertThat(record.key()).isEqualTo(workOrderId.toString());
-        assertThat(record.value()).isInstanceOf(Map.class);
-        Map<?, ?> map = (Map<?, ?>) record.value();
+        assertThat(record.value()).isInstanceOf(EventEnvelope.class);
+        EventEnvelope<?> envelope = (EventEnvelope<?>) record.value();
+        assertThat(envelope.metadata().eventType()).isEqualTo("PaymentConfirmedEvent");
+        assertThat(envelope.payload()).isInstanceOf(Map.class);
+        Map<?, ?> map = (Map<?, ?>) envelope.payload();
         assertThat(map.get("invoiceId")).isEqualTo(invoice.getId());
         assertThat(map.get("workOrderId")).isEqualTo(workOrderId);
         assertThat(map.get("amount")).isEqualTo(400.00);
@@ -79,8 +83,11 @@ class BillingEventPublisherAdapterTest {
         ProducerRecord<String, Object> record = captor.getValue();
         assertThat(record.topic()).isEqualTo("payment-events");
         assertThat(record.key()).isEqualTo(workOrderId.toString());
-        assertThat(record.value()).isInstanceOf(Map.class);
-        Map<?, ?> map = (Map<?, ?>) record.value();
+        assertThat(record.value()).isInstanceOf(EventEnvelope.class);
+        EventEnvelope<?> envelope = (EventEnvelope<?>) record.value();
+        assertThat(envelope.metadata().eventType()).isEqualTo("PaymentFailedEvent");
+        assertThat(envelope.payload()).isInstanceOf(Map.class);
+        Map<?, ?> map = (Map<?, ?>) envelope.payload();
         assertThat(map.get("workOrderId")).isEqualTo(workOrderId);
         assertThat(map.get("reason")).isEqualTo("CARD_DECLINED");
     }

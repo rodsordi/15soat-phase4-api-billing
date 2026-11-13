@@ -29,7 +29,7 @@ public class BillingEventsConsumer {
     )
     public void consumeWorkOrderApproved(ConsumerRecord<String, Map<String, Object>> record) {
         log.info("Received message on topic work-order-events, key: {}", record.key());
-        Map<String, Object> payload = record.value();
+        Map<String, Object> payload = extractPayload(record.value());
         if (payload == null) {
             return;
         }
@@ -66,7 +66,7 @@ public class BillingEventsConsumer {
             @Header(name = "X-Trace-Id", required = false) byte[] traceIdBytes
     ) {
         log.info("Received message on topic execution-events, key: {}", record.key());
-        Map<String, Object> payload = record.value();
+        Map<String, Object> payload = extractPayload(record.value());
         if (payload == null) {
             return;
         }
@@ -90,5 +90,16 @@ public class BillingEventsConsumer {
         } catch (Exception ex) {
             log.error("Error processing ExecutionFailedEvent message: {}", record.value(), ex);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractPayload(Map<String, Object> body) {
+        if (body == null) {
+            return null;
+        }
+        if (body.get("payload") instanceof Map<?, ?> inner) {
+            return (Map<String, Object>) inner;
+        }
+        return body;
     }
 }
