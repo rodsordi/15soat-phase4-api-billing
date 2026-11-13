@@ -66,7 +66,7 @@ paths:
         - name: order_id
           in: path
           required: true
-          description: Identificador único da ordem gerado pelo Mercado Pago (ex: ORD01K371WBFDS4MD9JG0K8ZMECBE).
+          description: "Identificador único da ordem gerado pelo Mercado Pago (ex: ORD01K371WBFDS4MD9JG0K8ZMECBE)."
           schema:
             type: string
             example: ORD01K371WBFDS4MD9JG0K8ZMECBE
@@ -521,7 +521,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
-      description: Conflito de estado da ordem (ex: tentativa de cancelamento de ordem já processada).
+      description: "Conflito de estado da ordem (ex: tentativa de cancelamento de ordem já processada)."
       content:
         application/json:
           schema:
