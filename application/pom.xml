@@ -41,6 +41,10 @@
             <groupId>br.com.fiap.phase4</groupId>
             <artifactId>mod-aot</artifactId>
         </dependency>
+        <dependency>
+            <groupId>br.com.fiap.phase4</groupId>
+            <artifactId>mod-security</artifactId>
+        </dependency>
 
         <!-- Spring Boot Starters -->
         <dependency>

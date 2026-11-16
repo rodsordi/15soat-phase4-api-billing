@@ -83,6 +83,11 @@
             </dependency>
             <dependency>
                 <groupId>br.com.fiap.phase4</groupId>
+                <artifactId>mod-security</artifactId>
+                <version>${commons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>br.com.fiap.phase4</groupId>
                 <artifactId>mod-integration-test</artifactId>
                 <version>${commons.version}</version>
                 <scope>test</scope>

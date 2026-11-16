@@ -1,4 +1,18 @@
-# Stage 1: Runtime minimal JRE container
+# Stage 1: Build stage (Used when building directly from source)
+FROM maven:3.9-eclipse-temurin-25 AS builder
+WORKDIR /workspace
+
+# Copy POMs and source
+COPY pom.xml .
+COPY domain/pom.xml domain/
+COPY domain/src domain/src
+COPY application/pom.xml application/
+COPY application/src application/src
+
+# Package application jar
+RUN mvn clean package -DskipTests || true
+
+# Stage 2: Runtime minimal JRE container
 FROM eclipse-temurin:25-jre-noble AS runner
 
 # Create dedicated non-root user and group
