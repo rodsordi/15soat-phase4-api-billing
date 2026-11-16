@@ -19,6 +19,14 @@ channels:
       paymentFailedMessage:
         $ref: '#/components/messages/PaymentFailedEvent'
 
+  billingEventsChannel:
+    address: billing-events
+    messages:
+      estimateApprovedMessage:
+        $ref: '#/components/messages/EstimateApprovedEvent'
+      estimateRejectedMessage:
+        $ref: '#/components/messages/EstimateRejectedEvent'
+
   executionEventsChannel:
     address: execution-events
     messages:
@@ -46,6 +54,20 @@ operations:
       $ref: '#/channels/paymentEventsChannel'
     messages:
       - $ref: '#/channels/paymentEventsChannel/messages/paymentFailedMessage'
+
+  publishEstimateApproved:
+    action: send
+    channel:
+      $ref: '#/channels/billingEventsChannel'
+    messages:
+      - $ref: '#/channels/billingEventsChannel/messages/estimateApprovedMessage'
+
+  publishEstimateRejected:
+    action: send
+    channel:
+      $ref: '#/channels/billingEventsChannel'
+    messages:
+      - $ref: '#/channels/billingEventsChannel/messages/estimateRejectedMessage'
 
   consumeExecutionFailed:
     action: receive
@@ -83,6 +105,20 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/ExecutionFailedPayload'
+
+    EstimateApprovedEvent:
+      name: EstimateApprovedEvent
+      title: Estimate Approved Event (Notifies work order to release the order)
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EstimateApprovedPayload'
+
+    EstimateRejectedEvent:
+      name: EstimateRejectedEvent
+      title: Estimate Rejected Event (Notifies work order to cancel the order)
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EstimateRejectedPayload'
 
   schemas:
     WorkOrderApprovedPayload:
@@ -137,6 +173,39 @@ components:
         - reason
       properties:
         workOrderId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+
+    EstimateApprovedPayload:
+      type: object
+      required:
+        - workOrderId
+        - estimateId
+      properties:
+        workOrderId:
+          type: string
+          format: uuid
+        estimateId:
+          type: string
+          format: uuid
+        customerDocument:
+          type: string
+        totalAmount:
+          type: number
+          format: double
+
+    EstimateRejectedPayload:
+      type: object
+      required:
+        - workOrderId
+        - estimateId
+      properties:
+        workOrderId:
+          type: string
+          format: uuid
+        estimateId:
           type: string
           format: uuid
         reason:

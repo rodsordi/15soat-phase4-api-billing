@@ -45,9 +45,22 @@ jobs:
           cache: maven
 
       - name: Compile and Run Architecture Verification & Tests
-        run: mvn clean test -B -s .github/settings.xml
+        run: mvn clean test jacoco:report -B -s .github/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SonarQube / SonarCloud Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ env.SONAR_TOKEN != '' }}
+        run: |
+          mvn -B verify sonar:sonar -s .github/settings.xml \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.qualitygate.wait=false
+        continue-on-error: true
 
       - name: Package Executable JAR
         run: mvn package -DskipTests -B -s .github/settings.xml

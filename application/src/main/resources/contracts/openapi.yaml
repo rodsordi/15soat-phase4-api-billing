@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Billing
     description: Operações de faturamento, orçamentos e pagamentos
+  - name: Estimate
+    description: Operações de orçamento e aprovação soberana do cliente
   - name: PaymentWebhook
     description: Notificações de webhook de pagamentos do Mercado Pago
 
@@ -145,8 +147,138 @@ paths:
               schema:
                 $ref: '#/components/schemas/WebhookResponse'
 
+  /api/v1/estimates/work-order/{workOrderId}:
+    get:
+      tags:
+        - Estimate
+      summary: Obter orçamento da Ordem de Serviço
+      operationId: getEstimateByWorkOrderId
+      parameters:
+        - name: workOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Orçamento encontrado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimateDetailedResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Estimate
+      summary: Decisão soberana do cliente sobre o orçamento (Aprovação ou Rejeição)
+      operationId: updateEstimateStatus
+      parameters:
+        - name: workOrderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEstimateStatusRequest'
+      responses:
+        '200':
+          description: Orçamento atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimateDetailedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
 components:
   schemas:
+    UpdateEstimateStatusRequest:
+      type: object
+      description: Requisição de decisão soberana do cliente sobre o orçamento
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - APPROVED
+            - REJECTED
+          description: Situação desejada para o orçamento
+        reason:
+          type: string
+          description: Justificativa em caso de rejeição
+
+    EstimateItemResponse:
+      type: object
+      description: Detalhe do item do orçamento
+      properties:
+        id:
+          type: string
+          format: uuid
+        itemType:
+          type: string
+          enum: [SERVICE, MATERIAL]
+        itemCodeOrSku:
+          type: string
+        name:
+          type: string
+        unitPrice:
+          type: number
+          format: double
+        quantity:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+
+    EstimateDetailedResponse:
+      type: object
+      description: Resposta completa do orçamento
+      properties:
+        id:
+          type: string
+          format: uuid
+        workOrderId:
+          type: string
+          format: uuid
+        customerDocument:
+          type: string
+        customerEmail:
+          type: string
+        totalAmount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [PENDING_APPROVAL, APPROVED, REJECTED, EXPIRED]
+        rejectionReason:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EstimateItemResponse'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+
     CreateInvoiceRequest:
       type: object
       description: Requisição para abertura de fatura vinculada à Ordem de Serviço

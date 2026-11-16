@@ -1,5 +1,8 @@
 package br.com.fiap.phase4.billing.adapter.in.kafka;
 
+import br.com.fiap.phase4.billing.domain.model.EstimateItem;
+import br.com.fiap.phase4.billing.domain.model.EstimateItemType;
+import br.com.fiap.phase4.billing.domain.port.in.CreateEstimateUseCase;
 import br.com.fiap.phase4.billing.domain.port.in.CreateInvoiceUseCase;
 import br.com.fiap.phase4.billing.domain.port.in.ProcessMercadoPagoPaymentUseCase;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,8 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,20 +26,80 @@ public class BillingEventsConsumer {
 
     private final CreateInvoiceUseCase createInvoiceUseCase;
     private final ProcessMercadoPagoPaymentUseCase processMercadoPagoPaymentUseCase;
+    private final CreateEstimateUseCase createEstimateUseCase;
 
     @KafkaListener(
             topics = "work-order-events",
             groupId = "${spring.kafka.consumer.group-id:billing-service-group}",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    public void consumeWorkOrderApproved(ConsumerRecord<String, Map<String, Object>> record) {
+    public void consumeWorkOrderEvents(ConsumerRecord<String, Map<String, Object>> record) {
         log.info("Received message on topic work-order-events, key: {}", record.key());
         String eventType = extractEventType(record.value());
-        if (eventType != null && !"WorkOrderApprovedEvent".equals(eventType)) {
-            log.debug("Ignoring event of type '{}' on work-order-events topic", eventType);
+        if (eventType == null) {
+            log.warn("Ignoring event with missing eventType on work-order-events: {}", record.value());
             return;
         }
 
+        switch (eventType) {
+            case "WorkOrderEstimateRequestedEvent", "WorkOrderDiagnosisCompletedEvent" ->
+                    processWorkOrderEstimateRequested(record);
+            case "WorkOrderApprovedEvent" ->
+                    processWorkOrderApproved(record);
+            default ->
+                    log.debug("Ignoring event of type '{}' on work-order-events topic", eventType);
+        }
+    }
+
+    private void processWorkOrderEstimateRequested(ConsumerRecord<String, Map<String, Object>> record) {
+        Map<String, Object> payload = extractPayload(record.value());
+        if (payload == null) {
+            return;
+        }
+
+        try {
+            Object workOrderIdObj = payload.get("workOrderId");
+            Object docObj = payload.get("customerDocument");
+            Object emailObj = payload.get("customerEmail");
+
+            if (workOrderIdObj == null || docObj == null) {
+                log.warn("Ignoring invalid WorkOrderEstimateRequestedEvent payload: {}", payload);
+                return;
+            }
+
+            UUID workOrderId = UUID.fromString(workOrderIdObj.toString());
+            String customerDocument = docObj.toString();
+            String customerEmail = emailObj != null ? emailObj.toString() : null;
+
+            List<EstimateItem> items = new ArrayList<>();
+            if (payload.get("items") instanceof List<?> rawList) {
+                for (Object itemObj : rawList) {
+                    if (itemObj instanceof Map<?, ?> itemMap) {
+                        Object typeObj = itemMap.get("itemType");
+                        EstimateItemType type = (typeObj != null && "MATERIAL".equalsIgnoreCase(typeObj.toString()))
+                                ? EstimateItemType.MATERIAL : EstimateItemType.SERVICE;
+                        Object codeObj = itemMap.get("itemCodeOrSku");
+                        String code = codeObj != null ? codeObj.toString() : "CODE-01";
+                        Object nameObj = itemMap.get("name");
+                        String name = nameObj != null ? nameObj.toString() : "Item";
+                        Object priceObj = itemMap.get("unitPrice");
+                        BigDecimal unitPrice = priceObj != null ? new BigDecimal(priceObj.toString()) : BigDecimal.ZERO;
+                        Object qtyObj = itemMap.get("quantity");
+                        int qty = qtyObj != null ? Integer.parseInt(qtyObj.toString()) : 1;
+                        items.add(EstimateItem.of(null, type, code, name, unitPrice, qty));
+                    }
+                }
+            }
+
+            log.info("Processing WorkOrderEstimateRequestedEvent for workOrderId: {}, customer: {}, items: {}",
+                    workOrderId, customerDocument, items.size());
+            createEstimateUseCase.createEstimate(workOrderId, customerDocument, customerEmail, items);
+        } catch (Exception ex) {
+            log.error("Error processing WorkOrderEstimateRequestedEvent message: {}", record.value(), ex);
+        }
+    }
+
+    private void processWorkOrderApproved(ConsumerRecord<String, Map<String, Object>> record) {
         Map<String, Object> payload = extractPayload(record.value());
         if (payload == null) {
             return;
