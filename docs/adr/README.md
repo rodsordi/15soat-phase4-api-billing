@@ -12,3 +12,4 @@ Para decisões que afetam **todos os microsserviços da arquitetura**, consulte 
 | ADR | Título | Status | Data |
 | :--- | :--- | :--- | :--- |
 | **[ADR 0001](0001-idempotent-payment-webhook-and-kafka-billing.md)** | Processamento Idempotente de Webhooks de Pagamento e Publicação de Faturas | `Aceito` | 2026-10-02 |
+| **[ADR 0002](0002-persistencia-relacional-postgresql-billing-db.md)** | Adoção do PostgreSQL Relacional (`billing_db`) para Conformidade Contábil, Faturamento ACID e Idempotência | `Aceito` | 2026-10-02 |
