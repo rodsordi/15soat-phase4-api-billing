@@ -46,6 +46,10 @@ spec:
               value: {{ .Values.env.KAFKA_BOOTSTRAP_SERVERS | quote }}
             - name: MERCADOPAGO_ACCESS_TOKEN
               value: {{ .Values.env.MERCADOPAGO_ACCESS_TOKEN | quote }}
+            {{- if .Values.env.KEYCLOAK_JWK_SET_URI }}
+            - name: KEYCLOAK_JWK_SET_URI
+              value: {{ .Values.env.KEYCLOAK_JWK_SET_URI | quote }}
+            {{- end }}
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
