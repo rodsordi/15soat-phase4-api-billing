@@ -6,9 +6,6 @@ Este documento descreve a modelagem de dados relacional do microsserviço de Fat
 
 ## 1. Diagrama Entidade-Relacionamento (MER)
 
-<div style="overflow-x: auto; width: 100%;">
-<div style="min-width: 900px;">
-
 ```mermaid
 erDiagram
     %% =========================================================================
@@ -66,9 +63,6 @@ erDiagram
     WORK_ORDER_EXTERNAL ||--o| ESTIMATE : "solicita_orcamento (work_order_id)"
     WORK_ORDER_EXTERNAL ||--o| INVOICE : "inicia_faturamento (work_order_id)"
 ```
-
-</div>
-</div>
 
 ---
 
