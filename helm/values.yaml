@@ -42,5 +42,5 @@ database:
 
 env:
   SPRING_PROFILES_ACTIVE: "prd"
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://billing-db-prd.ck6ly7e0ierf.us-east-1.rds.amazonaws.com:5432/billing_db"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://billing-db-prd.c3yq8yiqukwa.us-east-2.rds.amazonaws.com:5432/billing_db"
   KAFKA_BOOTSTRAP_SERVERS: "kafka-cluster-kafka-bootstrap.infra-kafka.svc.cluster.local:9092"
