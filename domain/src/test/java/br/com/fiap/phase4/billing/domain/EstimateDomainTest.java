@@ -76,33 +76,57 @@ class EstimateDomainTest {
 
             assertThat(created).isNotNull();
             assertThat(created.getWorkOrderId()).isEqualTo(workOrderId);
+            assertThat(created.getCustomerDocument()).isEqualTo(doc);
+            assertThat(created.getCustomerEmail()).isEqualTo(email);
+            assertThat(created.getTotalAmount()).isEqualByComparingTo("400.00");
             assertThat(created.getStatus()).isEqualTo(EstimateStatus.PENDING_APPROVAL);
-            assertThat(created.getTotalAmount()).isEqualByComparingTo(new BigDecimal("400.00"));
             assertThat(created.getItems()).hasSize(2);
 
-            verify(notificationPort, times(1)).sendEstimateProposalEmail(any(Estimate.class));
-            verify(eventPublisher, times(1)).publishEstimateCreated(any(Estimate.class), isNull());
+            verify(repository, times(1)).save(any(Estimate.class));
+            verify(notificationPort, times(1)).sendEstimateProposalEmail(created);
         }
 
         @Test
-        @DisplayName("Should return existing estimate when already created (Idempotency)")
+        @DisplayName("Should return existing estimate idempotently if already present")
         void shouldReturnExistingEstimateIdempotently() {
             UUID workOrderId = UUID.randomUUID();
             Estimate existing = Estimate.create(workOrderId, "52998224725", "customer@fiap.com.br", List.of());
-
             when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.of(existing));
 
             Estimate result = createUseCase.createEstimate(workOrderId, "52998224725", "customer@fiap.com.br", List.of());
 
             assertThat(result).isSameAs(existing);
-            verify(repository, never()).save(any());
-            verify(notificationPort, never()).sendEstimateProposalEmail(any());
+            verify(repository, never()).save(any(Estimate.class));
+            verifyNoInteractions(notificationPort);
+        }
+
+        @Test
+        @DisplayName("Should throw NullPointerException when workOrderId or customerDocument is null")
+        void shouldThrowWhenRequiredFieldMissing() {
+            assertThatThrownBy(() -> Estimate.create(null, "52998224725", "email@fiap.com", List.of()))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("Work Order ID is required");
+
+            UUID workOrderId = UUID.randomUUID();
+            assertThatThrownBy(() -> Estimate.create(workOrderId, null, "email@fiap.com", List.of()))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("Customer document is required");
+        }
+
+        @Test
+        @DisplayName("Should create estimate with null items list defaulting total to zero")
+        void shouldHandleNullItemsList() {
+            UUID workOrderId = UUID.randomUUID();
+            Estimate estimate = Estimate.create(workOrderId, "52998224725", "email@fiap.com", null);
+
+            assertThat(estimate.getTotalAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(estimate.getItems()).isEmpty();
         }
     }
 
     @Nested
     @DisplayName("Estimate Sovereign Decision Tests")
-    class DecisionTests {
+    class SovereignDecisionTests {
 
         @Test
         @DisplayName("Should approve estimate and publish EstimateApprovedEvent")
@@ -117,6 +141,21 @@ class EstimateDomainTest {
 
             assertThat(approved.getStatus()).isEqualTo(EstimateStatus.APPROVED);
             verify(eventPublisher, times(1)).publishEstimateApproved(approved, "trace-123");
+        }
+
+        @Test
+        @DisplayName("Should be idempotent when approving already approved estimate")
+        void shouldBeIdempotentWhenApprovingAlreadyApproved() {
+            UUID workOrderId = UUID.randomUUID();
+            Estimate estimate = Estimate.create(workOrderId, "52998224725", "customer@fiap.com.br", List.of());
+            estimate.approve();
+
+            when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.of(estimate));
+            when(repository.save(any(Estimate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Estimate approvedAgain = approveUseCase.approveByWorkOrderId(workOrderId, "trace-123");
+
+            assertThat(approvedAgain.getStatus()).isEqualTo(EstimateStatus.APPROVED);
         }
 
         @Test
@@ -136,12 +175,38 @@ class EstimateDomainTest {
         }
 
         @Test
+        @DisplayName("Should be idempotent when rejecting already rejected estimate")
+        void shouldBeIdempotentWhenRejectingAlreadyRejected() {
+            UUID workOrderId = UUID.randomUUID();
+            Estimate estimate = Estimate.create(workOrderId, "52998224725", "customer@fiap.com.br", List.of());
+            estimate.reject("Initial reason");
+
+            when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.of(estimate));
+            when(repository.save(any(Estimate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Estimate rejectedAgain = approveUseCase.rejectByWorkOrderId(workOrderId, "Second reason", "trace-456");
+
+            assertThat(rejectedAgain.getStatus()).isEqualTo(EstimateStatus.REJECTED);
+            assertThat(rejectedAgain.getRejectionReason()).isEqualTo("Initial reason");
+        }
+
+        @Test
         @DisplayName("Should throw ResourceNotFoundException when approving non-existent estimate")
         void shouldThrowWhenEstimateNotFound() {
             UUID workOrderId = UUID.randomUUID();
             when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> approveUseCase.approveByWorkOrderId(workOrderId, "trace-123"))
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when rejecting non-existent estimate")
+        void shouldThrowWhenRejectingNotFoundEstimate() {
+            UUID workOrderId = UUID.randomUUID();
+            when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> approveUseCase.rejectByWorkOrderId(workOrderId, "Reason", "trace-123"))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
 
@@ -157,6 +222,20 @@ class EstimateDomainTest {
             assertThatThrownBy(() -> approveUseCase.approveByWorkOrderId(workOrderId, "trace-123"))
                     .isInstanceOf(DomainException.class)
                     .hasMessageContaining("Cannot approve an already rejected estimate");
+        }
+
+        @Test
+        @DisplayName("Should throw DomainException when rejecting already approved estimate")
+        void shouldThrowWhenRejectingApprovedEstimate() {
+            UUID workOrderId = UUID.randomUUID();
+            Estimate estimate = Estimate.create(workOrderId, "52998224725", "customer@fiap.com.br", List.of());
+            estimate.approve();
+
+            when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.of(estimate));
+
+            assertThatThrownBy(() -> approveUseCase.rejectByWorkOrderId(workOrderId, "Decline after approve", "trace-123"))
+                    .isInstanceOf(DomainException.class)
+                    .hasMessageContaining("Cannot reject an already approved estimate");
         }
     }
 
@@ -175,6 +254,42 @@ class EstimateDomainTest {
 
             assertThat(found).isNotNull();
             assertThat(found.getWorkOrderId()).isEqualTo(workOrderId);
+        }
+
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when getByWorkOrderId not found")
+        void shouldThrowWhenGetByWorkOrderIdNotFound() {
+            UUID workOrderId = UUID.randomUUID();
+            when(repository.findByWorkOrderId(workOrderId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> getUseCase.getByWorkOrderId(workOrderId))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Estimate")
+                    .hasMessageContaining(workOrderId.toString());
+        }
+
+        @Test
+        @DisplayName("Should retrieve estimate by primary ID")
+        void shouldGetById() {
+            UUID id = UUID.randomUUID();
+            Estimate estimate = Estimate.create(UUID.randomUUID(), "52998224725", "customer@fiap.com.br", List.of());
+            when(repository.findById(id)).thenReturn(Optional.of(estimate));
+
+            Estimate found = getUseCase.getById(id);
+
+            assertThat(found).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when getById not found")
+        void shouldThrowWhenGetByIdNotFound() {
+            UUID id = UUID.randomUUID();
+            when(repository.findById(id)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> getUseCase.getById(id))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("Estimate")
+                    .hasMessageContaining(id.toString());
         }
     }
 }

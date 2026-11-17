@@ -61,7 +61,7 @@ jobs:
             -Dsonar.token=$SONAR_TOKEN \
             -Dsonar.organization=rodsordi \
             -Dsonar.projectKey=rodsordi_15soat-phase4-api-billing \
-            -Dsonar.qualitygate.wait=false
+            -Dsonar.qualitygate.wait=true
         continue-on-error: true
 
       - name: Package Executable JAR
@@ -94,7 +94,7 @@ jobs:
     timeout-minutes: 25
 
     env:
-      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-1' }}
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-2' }}
       ECR_REPOSITORY: 15soat-phase4-api-billing
       EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || secrets.EKS_CLUSTER_NAME || 'fiap-workshop-eks' }}
 
