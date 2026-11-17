@@ -22,6 +22,8 @@ ingress:
           pathType: Prefix
         - path: /api/v1/payments
           pathType: Prefix
+        - path: /api/v1/estimates
+          pathType: Prefix
 
 resources:
   limits:
