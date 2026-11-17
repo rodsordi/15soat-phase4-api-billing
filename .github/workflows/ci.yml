@@ -59,6 +59,8 @@ jobs:
           mvn -B verify sonar:sonar -s .github/settings.xml \
             -Dsonar.host.url=$SONAR_HOST_URL \
             -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.organization=rodsordi \
+            -Dsonar.projectKey=rodsordi_15soat-phase4-api-billing \
             -Dsonar.qualitygate.wait=false
         continue-on-error: true
 
